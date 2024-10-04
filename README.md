@@ -1,0 +1,2 @@
+The website illustrates the thesis "Research on Data Visualization Solutions for Learning Analytics and Implementation of a Prototype," supporting teachers in observing learning data and providing visual solutions based on the proposed model.
+Read learning data from a spreadsheet file obtained from the learning management system, combine it with learning scenarios stored as rules, and display it in various chart formats to assist users, specifically teachers.
