@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My Flask App{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@2.0.0/dist/chartjs-chart-boxplot.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><i class="fas fa-file-excel"></i> Data Visualization in Learning Analytics</h1>
+        </div>
+    </header>
+    
+    <div class="main-container">
+        <aside class="sidebar">
+            <ul>
+                <li><a href="{{ url_for('index') }}"><i class="fas fa-folder"></i> Data Management</a></li>
+                <li><a href="{{ url_for('course_analysis') }}"><i class="fas fa-chart-line"></i> Course Analysis</a></li>
+                <li class="has-submenu">
+                    <a href="#"><i class="fas fa-chart-bar"></i> Activity Analysis</a>
+                    <ul class="submenu">
+                        <li><a href="{{ url_for('assignment_analysis') }}"><i class="fas fa-pen"></i> Assignment Analysis</a></li>
+                        <li><a href="{{ url_for('quiz_analysis') }}"><i class="fas fa-question-circle"></i> Quiz Analysis</a></li>
+                        <li><a href="{{ url_for('exam_analysis') }}"><i class="fas fa-file-alt"></i> Exam Analysis</a></li>
+                    </ul>
+                </li>
+                <li><a href="{{ url_for('learner_analysis') }}"><i class="fas fa-users"></i> Learner Analysis</a></li>
+            </ul>
+        </aside>
+        
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    
+    <footer>
+        <div class="footer-container">
+            <p>&copy; 2024 Data Visualization in Learning Analytics | Designed by HCMUS</p>
+        </div>
+    </footer>
+</body>
+</html>

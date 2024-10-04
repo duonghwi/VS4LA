@@ -1,0 +1,200 @@
+{% extends "layout.html" %}
+
+{% block title %}Course Analysis{% endblock %}
+
+{% block content %}
+    <div class="course-analysis-container">
+        <h2 class="page-title">Course Analysis</h2>
+        
+        <div class="charts-row">
+            <div class="chart-container">
+                <canvas id="course_analysis_chart" style="width: 70%"></canvas>
+                <h3 class="chart-title" style="text-align: center;">Student Performance Ratios: Excellent, Good, Average, Fail</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="histogram_chart" style="width: 70%; height: 400px;"></canvas>
+                <h3 class="chart-title" style="text-align: center;">Distribution of Scores Across the Entire Course</h3>
+            </div>
+        </div>
+        
+        <div class="chart-and-info-container">
+            <div id="boxplot_chart" style="width: 800px; height: 500px;"></div>
+            <div id="boxplot_info">
+                <table id="boxplot_info_table">
+                    <thead>
+                        <tr>
+                            <th>Activity</th>
+                            <th>Range</th>
+                            <th>Average</th>
+                            <th>Outliers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    <button id="toggle-info-button" class="toggle-info-button">Show Detailed Information</button>
+    <h3 class="chart-title" style="text-align: center;">'Distribution of Scores for Each Activity in the Course</h3>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('{{ url_for('course_analysis_data') }}')
+                .then(response => response.json())
+                .then(data => {
+                    var ctx = document.getElementById('course_analysis_chart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Excellent', 'Good', 'Average', 'Fail'],
+                            datasets: [{
+                                label: 'Student Performance',
+                                data: [data.Excellent, data.Good, data.Average, data.Fail],
+                                backgroundColor: ['#4caf50', '#2196f3', '#ff9800', '#f44336'],
+                                borderColor: ['#ffffff', '#ffffff', '#ffffff', '#ffffff'],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            if (context.raw !== null) {
+                                                label += Math.round(context.raw) + '%';
+                                            }
+                                            return label;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                });
+
+            fetch('{{ url_for('histogram_data') }}')
+                .then(response => response.json())
+                .then(data => {
+                    var ctx = document.getElementById('histogram_chart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: data.bins,
+                            datasets: [{
+                                label: 'Number of Students',
+                                data: data.counts,
+                                backgroundColor: '#4caf50',
+                                borderColor: '#388e3c',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Scores'
+                                    }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: 'Number'
+                                    },
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                });
+
+            fetch('{{ url_for('boxplot_data') }}')
+                .then(response => response.json())
+                .then(data => {
+                    var traces = [];
+                    var tableBody = document.getElementById('boxplot_info_table').getElementsByTagName('tbody')[0];
+                    tableBody.innerHTML = '';
+
+                    Object.keys(data).forEach((key, index) => {
+                        traces.push({
+                            type: 'box',
+                            y: data[key],
+                            name: key
+                        });
+
+                        const boxData = data[key];
+                        const q1 = percentile(boxData, 25);
+                        const q3 = percentile(boxData, 75);
+                        const avg = boxData.reduce((a, b) => a + b, 0) / boxData.length;
+                        const iqr = q3 - q1;
+                        const lowerBound = q1 - 1.5 * iqr;
+                        const upperBound = q3 + 1.5 * iqr;
+                        const outliers = boxData.filter(value => value < lowerBound || value > upperBound).length;
+                        const range = `${q1.toFixed(2)} - ${q3.toFixed(2)}`;
+
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${key}</td>
+                            <td>${range}</td>
+                            <td>${avg.toFixed(2)}</td>
+                            <td>${outliers}</td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+
+                    var layout = {
+                        title: 'Distribution of Scores for Each Activity in the Course',
+                        xaxis: {
+                            title: 'Activity'
+                        },
+                        yaxis: {
+                            title: 'Scores'
+                        }
+                    };
+
+                    Plotly.newPlot('boxplot_chart', traces, layout);
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                });
+
+            // Function to calculate percentile
+            function percentile(arr, p) {
+                arr.sort((a, b) => a - b);
+                const index = (p / 100) * (arr.length - 1);
+                const lower = Math.floor(index);
+                const upper = lower + 1;
+                const weight = index - lower;
+                if (upper >= arr.length) return arr[lower];
+                return arr[lower] * (1 - weight) + arr[upper] * weight;
+            }
+
+            // Toggle button functionality
+            const toggleButton = document.getElementById('toggle-info-button');
+            const infoTable = document.getElementById('boxplot_info');
+            toggleButton.addEventListener('click', () => {
+                if (infoTable.style.display === 'none') {
+                    infoTable.style.display = 'block';
+                    toggleButton.textContent = 'Hide Detailed Information';
+                } else {
+                    infoTable.style.display = 'none';
+                    toggleButton.textContent = 'Show Detailed Information';
+                }
+            });
+        });
+    </script>
+{% endblock %}

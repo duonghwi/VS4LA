@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+
+{% block title %}Learner Analysis{% endblock %}
+
+{% block content %}
+    <div class="learner-analysis-container">
+        <h1 class="page-title">Learner Analysis</h1>
+        <label for="student-select">Select Student id:</label>
+        <select id="student-select">
+        </select>
+
+        <div class="chart-container">
+            <canvas id="learner_analysis_chart" style="width: 800px; max-height: 400px;"></canvas>
+        </div>
+        <h3 class="chart-title" style="text-align: center;">Comparison of Student's Total Score with Class Average</h3>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let chartInstance = null; 
+
+            
+            fetch('/api/student-list')
+                .then(response => response.json())
+                .then(students => {
+                    const studentSelect = document.getElementById('student-select');
+                    students.forEach(student => {
+                        const option = document.createElement('option');
+                        option.value = student;
+                        option.text = student;
+                        studentSelect.appendChild(option);
+                    });
+
+                    // Load data for the first student when the page loads
+                    loadLearnerAnalysisData(students[0]);
+
+                    // Add event listener when selecting another student
+                    studentSelect.addEventListener('change', function() {
+                        loadLearnerAnalysisData(this.value);
+                    });
+                });
+
+            function loadLearnerAnalysisData(username) {
+                fetch(`/api/learner-analysis-data/${username}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('Error fetching data:', data.error);
+                            return;
+                        }
+
+                        const labels = ['Final Note', 'Final Exam', 'Quiz'].concat(Object.keys(data.student_scores.Assignments));
+                        
+                        const studentScores = [
+                            data.student_scores['Final Note'],
+                            data.student_scores['Final Exam'],
+                            data.student_scores.Quiz
+                        ].concat(Object.values(data.student_scores.Assignments));
+
+                        const classAverages = [
+                            data.class_averages['Final Note'],
+                            data.class_averages['Final Exam'],
+                            data.class_averages.Quiz
+                        ].concat(Object.values(data.class_averages.Assignments));
+
+                        // Destroy the old chart if it exists
+                        if (chartInstance !== null) {
+                            chartInstance.destroy();
+                        }
+
+                        const ctx = document.getElementById('learner_analysis_chart').getContext('2d');
+                        chartInstance = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: 'Student\'s Score',
+                                        data: studentScores,
+                                        backgroundColor: 'rgba(0, 123, 255, 0.7)', 
+                                        borderColor: 'rgba(0, 123, 255, 1)', 
+                                        borderWidth: 1
+                                    },
+                                    {
+                                        label: 'Class Average',
+                                        data: classAverages,
+                                        backgroundColor: 'rgba(255, 193, 7, 0.7)', 
+                                        borderColor: 'rgba(255, 193, 7, 1)', 
+                                        borderWidth: 1
+                                    }
+                                ]
+                            },
+                            options: {
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Score'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    })
+                    .catch(error => console.error('Error fetching data:', error));
+            }
+        });
+    </script>
+{% endblock %}

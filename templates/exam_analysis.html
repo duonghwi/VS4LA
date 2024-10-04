@@ -1,0 +1,190 @@
+{% extends "layout.html" %}
+
+{% block title %}Exam Analysis{% endblock %}
+
+{% block content %}
+    <div class="exam-analysis-container">
+        <h1 class="page-title">Exam Analysis</h1>
+        <div class="chart-and-info-container">
+            <div id="exam_analysis_chart" style="width: 800px; height: 500px;"></div>
+            
+            <div id="boxplot_info">
+                <table id="boxplot_info_table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Range</th>
+                            <th>Average</th>
+                            <th>Outliers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div>
+            <h3 class="chart-title" style="text-align: center;">Distribution Of Scores For Questions In Final Exam<h3>
+            <button id="toggle-info-button" class="toggle-info-button">Show Detailed Information</button>
+        </div>
+        <div class="chart-container">
+            <div class="dropdown-container">
+                <select id="chart-type-dropdown">
+                    <option value="bar">Histogram</option>
+                    <option value="line">Line Chart</option>
+                </select>
+            </div>
+            <canvas id="exam_histogram_chart" style="width: 800px; max-height: 500px;"></canvas>
+            <h3 class="chart-title">Frequency Distribution of Exam Scores</h3>
+        </div>
+    </div>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
+            const backgroundColors = colors.map(color => color + '80');
+            let chartType = 'bar'; 
+
+            fetch('{{ url_for('exam_analysis_data') }}')
+                .then(response => response.json())
+                .then(data => {
+                    let traces = Object.keys(data).map((label, index) => ({
+                        type: 'box',
+                        y: data[label],
+                        name: label,
+                        marker: { color: colors[index] }
+                    }));
+
+                    let layout = {
+                        xaxis: {
+                            title: 'Exam Questions',
+                            automargin: true  
+                        },
+                        yaxis: {
+                            title: 'Scores'
+                        },
+                        margin: {
+                            t: 50,  
+                            b: 100  
+                        }
+                    };
+
+                    Plotly.newPlot('exam_analysis_chart', traces, layout).then(function(gd) {
+                        const boxplotData = gd.data;
+                        const infoTableBody = document.getElementById('boxplot_info_table').getElementsByTagName('tbody')[0];
+                        infoTableBody.innerHTML = '';
+
+                        boxplotData.forEach((trace, index) => {
+                            const boxData = trace.y;
+
+                            const min = Math.min(...boxData);
+                            const max = Math.max(...boxData);
+                            const q1 = percentile(boxData, 25);
+                            const q3 = percentile(boxData, 75);
+                            const avg = boxData.reduce((a, b) => a + b, 0) / boxData.length;
+                            const iqr = q3 - q1;
+                            const lowerBound = q1 - 1.5 * iqr;
+                            const upperBound = q3 + 1.5 * iqr;
+                            const outliers = boxData.filter(value => value < lowerBound || value > upperBound).length;
+                            const range = `${q1.toFixed(2)} - ${q3.toFixed(2)}`;
+
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${trace.name}</td>
+                                <td>${range}</td>
+                                <td>${avg.toFixed(2)}</td>
+                                <td>${outliers}</td>
+                            `;
+                            infoTableBody.appendChild(row);
+                        });
+                    });
+                });
+
+            fetch('{{ url_for('exam_histogram_data') }}')
+                .then(response => response.json())
+                .then(histogramData => {
+                    const ctx = document.getElementById('exam_histogram_chart').getContext('2d');
+                    const datasets = Object.keys(histogramData.histogram_data).map((label, index) => ({
+                        label: label,
+                        data: histogramData.histogram_data[label],
+                        backgroundColor: backgroundColors[index],
+                        borderColor: colors[index],
+                        borderWidth: 1
+                    }));
+
+                    function updateChart(type) {
+                        const chartType = type === 'line' ? 'line' : 'bar';  // Default to 'bar'
+                        const chart = Chart.getChart(ctx); // Get existing chart if it exists
+
+                        if (chart) {
+                            chart.destroy(); // Destroy existing chart if it exists
+                        }
+
+                        new Chart(ctx, {
+                            type: chartType,
+                            data: {
+                                labels: histogramData.bins,
+                                datasets: datasets
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Scores'
+                                        }
+                                    },
+                                    y: {
+                                        title: {
+                                            display: true,
+                                            text: 'Frequency'
+                                        },
+                                        beginAtZero: true
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    // Initialize with default chart type
+                    updateChart(chartType);
+
+                    // Add event listener to dropdown menu
+                    const dropdown = document.getElementById('chart-type-dropdown');
+                    dropdown.addEventListener('change', function() {
+                        chartType = this.value;
+                        updateChart(chartType);
+                    });
+                })
+                .catch(error => console.error('Error fetching data:', error));
+
+            // Toggle button functionality
+            const toggleButton = document.getElementById('toggle-info-button');
+            const infoTable = document.getElementById('boxplot_info');
+            toggleButton.addEventListener('click', () => {
+                if (infoTable.style.display === 'none') {
+                    infoTable.style.display = 'block';
+                    toggleButton.textContent = 'Hide Detailed Information';
+                } else {
+                    infoTable.style.display = 'none';
+                    toggleButton.textContent = 'Show Detailed Information';
+                }
+            });
+
+            // Function to calculate percentile
+            function percentile(arr, p) {
+                arr.sort((a, b) => a - b);
+                const index = (p / 100) * (arr.length - 1);
+                const lower = Math.floor(index);
+                const upper = lower + 1;
+                const weight = index - lower;
+                if (upper >= arr.length) return arr[lower];
+                return arr[lower] * (1 - weight) + arr[upper] * weight;
+            }
+        });
+
+    </script>
+{% endblock %}
